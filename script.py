@@ -8,9 +8,13 @@ print("### LOAD DATA ###")
 veget = gpd.read_file("./input_data/veget_strat.gpkg")
 network_buffer = gpd.read_file("./input_data/network_metrop_buffer.gpkg")
 
-network_buffer.to_crs(4171)
+#veget = gpd.read_file("./input_data/bbox_veget.gpkg")
+#network_buffer = gpd.read_file("./input_data/bbox_network_buffer.gpkg")
 
-network_path = "./input_data/network_metrop.gpkg"
+network_buffer = network_buffer.to_crs(3946)
+
+network_path = "./input_data/metrop_walk_simplified.gpkg"
+#network_path = "./input_data/bbox_network.gpkg"
 
 # network_edges = gpd.read_file("./input_data/network_metrop.gpkg" layer="edges")
 # network_nodes = gpd.read_file("./input_data/network_metrop.gpkg", layer="nodes")
