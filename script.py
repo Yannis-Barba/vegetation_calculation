@@ -6,28 +6,39 @@ import pandas as pd
 print("### LOAD DATA ###")
 
 veget = gpd.read_file("./input_data/veget_strat.gpkg")
-network_buffer = gpd.read_file("./input_data/network_metrop_buffer.gpkg")
+network_buffer_dissolved = gpd.read_file("./input_data/network_metrop_buffer.gpkg")
+veget = veget.to_crs(3946)
+network_buffer_dissolved = network_buffer_dissolved.to_crs(3946)
 
-#veget = gpd.read_file("./input_data/bbox_veget.gpkg")
-#network_buffer = gpd.read_file("./input_data/bbox_network_buffer.gpkg")
-
-network_buffer = network_buffer.to_crs(3946)
-
+network_buffer_path = "./output_data/metrop_buffer_network.gpkg"
 network_path = "./input_data/metrop_walk_simplified.gpkg"
-#network_path = "./input_data/bbox_network.gpkg"
 
-# network_edges = gpd.read_file("./input_data/network_metrop.gpkg" layer="edges")
-# network_nodes = gpd.read_file("./input_data/network_metrop.gpkg", layer="nodes")
+### TEST BBOX
+#veget = gpd.read_file("./input_data/bbox_veget.gpkg")
+#network_buffer_dissolved = gpd.read_file("./input_data/bbox_network_buffer.gpkg")
+#network_path = "./input_data/bbox_network.gpkg"
+#network_buffer_path = "./output_data/bbox_buffer_network_4171.gpkg"
 
 print("### CLIP VEGET ###")
 
-clipped_veget = gpd.clip(veget, network_buffer)
+clipped_veget = gpd.clip(veget, network_buffer_dissolved)
 
-clipped_veget_path = "./output_data/clipped_veget.gpkg"
+clipped_veget_path = "./output_data/clipped_veget_3946.gpkg"
 clipped_veget.to_file(clipped_veget_path, driver="GPKG")
 
-print("### JOIN VEGET NETWORK ###")
+print("### BUFFERING NETWORK ###")
 
+network_edges = gpd.read_file(network_path, layer="edges")
+network = network_edges.to_crs(3946)
+
+buffered_features = network.geometry.apply(lambda x: x.buffer(3))
+
+network_edges_buffer = gpd.GeoDataFrame(network_edges.drop("geometry", axis=1), geometry=buffered_features)
+network_edges_buffer.crs = network.crs
+
+network_edges_buffer.to_file(network_buffer_path, layer="edges", driver="GPKG")
+
+print("### JOIN VEGET NETWORK ###")
 
 ### FUNCTION TO CALCULATE IF FOR EACH DATA
 
@@ -73,7 +84,7 @@ def network_weighted_average(default_network, weighted_edges, layer_name, output
 
     # For some reason pandas convert u, v and key into float for weighted_edges
     weighted_edges[["u", "v", "key"]] = weighted_edges[["u", "v", "key"]].astype(int)
-    weighted_edges = weighted_edges.drop_duplicates(subset=["u", "v", "key"])
+    #weighted_edges = weighted_edges.drop_duplicates(subset=["u", "v", "key"])
     weighted_edges = weighted_edges.set_index(["u", "v", "key"])
 
     print(f"Calculating weighted average for {layer_name} ...")
@@ -88,6 +99,8 @@ def network_weighted_average(default_network, weighted_edges, layer_name, output
     default_edges = default_edges.set_index(["u", "v", "key"])
 
     default_edges[f"IF_{layer_name}"] = grouped_edges[f"IF_{layer_name}"]
+    
+    default_edges.to_file("./output_data/edges_weighted.gpkg")
 
     default_nodes = default_nodes.set_index(['osmid'])
 
@@ -97,34 +110,34 @@ def network_weighted_average(default_network, weighted_edges, layer_name, output
 
     ox.save_graph_geopackage(G, filepath=output_path)
 
-def join_network_layer(network_path, layer_path, layer_name, output_path):
+def join_network_layer(network_buffer_path, network_path, layer_path, layer_name, output_path):
     """This function join a network with a specific layer"""
-    network_edges = gpd.read_file(network_path, layer="edges")
+    network_edges = gpd.read_file(network_buffer_path, layer="edges")
 
     layer = gpd.read_file(layer_path)
-
-    # if(layer_name == "temp_surface_road_raw"):
-    #     layer = layer.to_crs(3946)
-    # else:
     layer = layer.to_crs(network_edges.crs)
 
     print(f"Joining {layer_name} with osm network")
 
-    joined_edges = gpd.overlay(network_edges, layer, how="intersection", keep_geom_type=True)
+    joined_edges = gpd.overlay(network_edges, layer, how="identity", keep_geom_type=True)
 
     # Convert into geoserie in order to calculate the length of the intersection
 
     joined_edges_serie = gpd.GeoSeries(joined_edges["geometry"])
 
-    joined_edges_serie = joined_edges_serie.to_crs(32631)
-
     joined_edges["cal_length"] = joined_edges_serie.length
+
+    joined_edges[f"IF_{layer_name}"] = joined_edges[f"IF_{layer_name}"].fillna(1)
+
+    joined_edges = joined_edges.to_crs(4171)
+
+    joined_edges.to_file("./output_data/buffer_edges_IF_ident.gpkg", driver="GPKG")
 
     network_weighted_average(network_path, joined_edges, layer_name, output_path)
 
-network_veget_path = "./output_data/network_veget_weighted.gpkg"
+network_veget_path = "./output_data/network_veget_weighted_4171.gpkg"
 
-join_network_layer(network_path, veget_IF_path, "veget", network_veget_path)
+join_network_layer(network_buffer_path, network_path, veget_IF_path, "veget", network_veget_path)
 
 
 
