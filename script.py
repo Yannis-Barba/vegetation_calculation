@@ -1,7 +1,10 @@
+import os
+os.environ['USE_PYGEOS'] = '0'
 import geopandas as gpd
 import osmnx as ox
 import numpy as np
 import pandas as pd
+import pygeos as pg
 
 print("### LOAD DATA ###")
 
@@ -19,7 +22,7 @@ network_path = "./input_data/metrop_walk_simplified.gpkg"
 # network_edges_dissolved_path = "./output_data/bbox_metrop_buffer_dissolved.gpkg"
 
 veget = veget.to_crs(3946)
-# network_buffer_dissolved = network_buffer_dissolved.to_crs(3946)
+#network_buffer_dissolved = network_buffer_dissolved.to_crs(3946)
 
 print("### BUFFERING NETWORK ###")
 
@@ -67,12 +70,8 @@ def veget_IF(row):
     if(row["vegetation_class"] == 1):
         return 0.75
     elif(row["vegetation_class"] == 2):
-        return 0.75
-    elif(row["vegetation_class"] == 3):
         return 0.5
-    elif(row["vegetation_class"] == 4):
-        return 0.01
-    elif(row["vegetation_class"] == 5):
+    elif(row["vegetation_class"] == 3):
         return 0.01
     else:
         return 1
@@ -129,6 +128,15 @@ def join_network_layer(network_buffer_path, network_path, layer_path, layer_name
 
     print(f"Joining {layer_name} with osm network")
 
+    print("network valid : ", network_edges.is_valid.all())
+    print("veget valid : ", layer.is_valid.all())
+
+    print(network_edges.geometry.values)
+
+    network_edges.geometry = pg.set_precision(network_edges.geometry.values.data, 1e-6)
+    layer.geometry = pg.set_precision(layer.geometry.values.data, 1e-6)
+
+
     joined_edges = gpd.overlay(network_edges, layer, how="identity", keep_geom_type=True)
 
     # Convert into geoserie in order to calculate the length of the intersection
@@ -139,13 +147,13 @@ def join_network_layer(network_buffer_path, network_path, layer_path, layer_name
 
     joined_edges[f"IF_{layer_name}"] = joined_edges[f"IF_{layer_name}"].fillna(1)
 
-    joined_edges = joined_edges.to_crs(4171)
+    # joined_edges = joined_edges.to_crs(4171)
 
     joined_edges.to_file("./output_data/buffer_edges_IF_ident.gpkg", driver="GPKG")
 
     network_weighted_average(network_path, joined_edges, layer_name, output_path)
 
-network_veget_path = "./output_data/network_veget_weighted_4171.gpkg"
+network_veget_path = "./output_data/network_veget_weighted_custom_filter_3946.gpkg"
 
 join_network_layer(network_buffer_path, network_path, veget_IF_path, "veget", network_veget_path)
 
