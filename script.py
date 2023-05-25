@@ -101,7 +101,7 @@ def network_weighted_average(default_network, weighted_edges, layer_name, output
     # Due to intersection, there more features into the weighted_edges dataframe than the default_network one
     #The following line allows to recalculate the weighted average for one edge taking account all the "subedges"
     grouped_edges = weighted_edges.groupby(["u", "v", "key"], group_keys=True).apply(lambda x: pd.Series({
-        f"IF_{layer_name}": np.average(x[f"IF_{layer_name}"], weights=x["cal_length"])
+        f"IF_{layer_name}": np.average(x[f"IF_{layer_name}"], weights=x["cal_area"])
     })).reset_index()
 
     grouped_edges = grouped_edges.set_index(["u", "v", "key"])
@@ -143,7 +143,7 @@ def join_network_layer(network_buffer_path, network_path, layer_path, layer_name
 
     joined_edges_serie = gpd.GeoSeries(joined_edges["geometry"])
 
-    joined_edges["cal_length"] = joined_edges_serie.length
+    joined_edges["cal_area"] = joined_edges_serie.area
 
     joined_edges[f"IF_{layer_name}"] = joined_edges[f"IF_{layer_name}"].fillna(1)
 
